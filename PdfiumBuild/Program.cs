@@ -8,7 +8,7 @@ namespace PdfiumBuild
 {
     public static class Program
     {
-        public static void Main(string[] args)
+        public static int Main(string[] args)
         {
             Console.WriteLine("Setting up environment");
 
@@ -33,10 +33,18 @@ namespace PdfiumBuild
 
             Console.WriteLine("Executing scripts");
 
+            bool anyFailed = false;
+
             foreach (var script in scripts)
             {
-                script.Execute();
+                if (!script.Execute())
+                {
+                    Console.Error.WriteLine("Compilation failed");
+                    anyFailed = true;
+                }
             }
+
+            return anyFailed ? 1 : 0;
         }
     }
 }

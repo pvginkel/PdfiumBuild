@@ -17,7 +17,7 @@ namespace PdfiumBuild
         private string _depotTools;
         private string _repo;
 
-        public string PdfiumPath { get; private set; }
+        public string CheckoutPath { get; private set; }
 
         public Env(Arguments arguments)
         {
@@ -66,7 +66,7 @@ namespace PdfiumBuild
             RunCommand("gclient.bat", "sync");
 #endif
 
-            PdfiumPath = Path.Combine(_repo, "pdfium");
+            CheckoutPath = Path.Combine(_repo, "pdfium");
         }
 
         private void SetupDepotTools()

@@ -31,59 +31,47 @@ namespace PdfiumBuild
             _script = Path.GetFileName(_directory);
         }
 
-        public void Execute()
+        public bool Execute()
         {
+            Console.WriteLine("Compiling " + _script);
+
+            ResetBuildDirectory();
             CopyContrib();
             FixupBuildScript();
             GenerateBuildFiles();
             Build();
-            RestoreContrib();
-            CopyOutput();
+            return CopyOutput();
         }
 
-        private void CopyOutput()
+        private void ResetBuildDirectory()
+        {
+            Environment.CurrentDirectory = _env.CheckoutPath;
+
+            _env.RunCommand("git.exe", "clean", "-xdf");
+            _env.RunCommand("git.exe", "reset", "--hard");
+        }
+
+        private bool CopyOutput()
         {
             Console.WriteLine("Copying output to target directory");
 
             string target = Path.Combine(_target, _script);
             Directory.CreateDirectory(target);
 
-            string fileName = Path.Combine(_env.PdfiumPath, "out", _script, "pdfium.dll");
+            string fileName = Path.Combine(_env.CheckoutPath, "out", "pdfium.dll");
 
             if (File.Exists(fileName))
+            {
                 File.Copy(fileName, Path.Combine(target, Path.GetFileName(fileName)), true);
+                return true;
+            }
+
+            return false;
         }
 
         private void FixupBuildScript()
         {
-            var contribs = _contribs.ToList();
-
-            _contribs.Add("BUILD.gn");
-
-            string buildScript = Path.Combine(_env.PdfiumPath, "BUILD.gn");
-
-            string target = buildScript + "-backup";
-
-            if (File.Exists(target))
-                File.Copy(target, buildScript, true);
-            else
-                File.Copy(buildScript, target);
-
-            BuildScriptRewriter.Rewrite(buildScript, contribs);
-        }
-
-        private void RestoreContrib()
-        {
-            foreach (string fileName in _contribs)
-            {
-                string target = Path.Combine(_env.PdfiumPath, fileName);
-
-                File.Delete(target);
-
-                string source = target + "-backup";
-                if (File.Exists(source))
-                    File.Move(source, target);
-            }
+            BuildScriptRewriter.Rewrite(Path.Combine(_env.CheckoutPath, "BUILD.gn"), _contribs);
         }
 
         private void CopyContrib()
@@ -100,50 +88,37 @@ namespace PdfiumBuild
                 string relativeName = fileName.Substring(contrib.Length).TrimStart(Path.DirectorySeparatorChar);
                 _contribs.Add(relativeName);
 
-                string target = Path.Combine(_env.PdfiumPath, relativeName);
+                string target = Path.Combine(_env.CheckoutPath, relativeName);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(target));
-
-                if (File.Exists(target))
-                {
-                    string backup = target + "-backup";
-                    if (!File.Exists(backup))
-                        File.Move(target, backup);
-                    else
-                        File.Delete(target);
-                }
-
-                File.Copy(fileName, target);
+                File.Copy(fileName, target, true);
             }
         }
 
         private void Build()
         {
-            Environment.CurrentDirectory = _env.PdfiumPath;
+            Environment.CurrentDirectory = _env.CheckoutPath;
 
-            _env.RunCommand("ninja.exe", "-C", "out\\" + _script, "pdfium");
+            _env.RunCommand("ninja.exe", "-C", "out", "pdfium");
         }
 
         private void GenerateBuildFiles()
         {
-            Environment.CurrentDirectory = _env.PdfiumPath;
+            Environment.CurrentDirectory = _env.CheckoutPath;
 
             string args = Path.Combine(_directory, "args.gn");
-            string argsTarget = Path.Combine(_env.PdfiumPath, "out", _script, "args.gn");
 
             if (File.Exists(args))
             {
                 Console.WriteLine("Found args.gn as part of the script; copying");
 
-                Directory.CreateDirectory(Path.GetDirectoryName(argsTarget));
-                File.Copy(args, argsTarget, true);
-            }
-            else if (File.Exists(argsTarget))
-            {
-                File.Delete(argsTarget);
+                string target = Path.Combine(_env.CheckoutPath, "out", "args.gn");
+
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                File.Copy(args, target, true);
             }
 
-            _env.RunCommand("gn.bat", "gen", "out\\" + _script);
+            _env.RunCommand("gn.bat", "gen", "out");
         }
     }
 }
