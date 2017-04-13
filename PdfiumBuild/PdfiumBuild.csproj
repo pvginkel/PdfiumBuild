@@ -48,6 +48,7 @@
     <Compile Include="Arguments.cs" />
     <Compile Include="BuildScriptRewriter.cs" />
     <Compile Include="DirectoryEx.cs" />
+    <Compile Include="Env.cs" />
     <Compile Include="Gn\GnLexer.cs" />
     <Compile Include="Gn\GnParseException.cs" />
     <Compile Include="Gn\GnRewriter.cs" />

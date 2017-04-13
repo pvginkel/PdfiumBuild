@@ -14,6 +14,12 @@ namespace PdfiumBuild
 
             var arguments = Arguments.Parse(args);
 
+            Console.WriteLine("Initializing build environment");
+
+            var env = new Env(arguments);
+
+            env.Setup();
+
             Console.WriteLine("Finding scripts");
 
             var scripts = new List<Script>();
@@ -22,7 +28,7 @@ namespace PdfiumBuild
             {
                 Console.WriteLine($"Found script {Path.GetFileName(directory)}");
 
-                scripts.Add(Script.Load(directory, arguments));
+                scripts.Add(new Script(env, directory, arguments.Target));
             }
 
             Console.WriteLine("Executing scripts");

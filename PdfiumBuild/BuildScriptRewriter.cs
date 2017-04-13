@@ -10,19 +10,24 @@ namespace PdfiumBuild
 {
     internal class BuildScriptRewriter : GnRewriter
     {
-        public static void Rewrite(string fileName)
+        private readonly List<string> _contribs;
+
+        public static void Rewrite(string fileName, List<string> contribs)
         {
             if (fileName == null)
                 throw new ArgumentNullException(nameof(fileName));
+            if (contribs == null)
+                throw new ArgumentNullException(nameof(contribs));
 
-            string rewritten = new BuildScriptRewriter(new GnLexer(File.ReadAllText(fileName))).Rewrite();
+            string rewritten = new BuildScriptRewriter(new GnLexer(File.ReadAllText(fileName)), contribs).Rewrite();
 
             File.WriteAllText(fileName, rewritten);
         }
 
-        private BuildScriptRewriter(GnLexer lexer)
+        private BuildScriptRewriter(GnLexer lexer, List<string> contribs)
             : base(lexer)
         {
+            _contribs = contribs;
         }
 
         protected override IEnumerable<GnToken> GetTokens()
@@ -88,21 +93,32 @@ namespace PdfiumBuild
                                 }
                             }
                         }
-                        /*
-                        else if (inPdfiumLibrary && token.Text == "sources")
+                        else if (inPdfiumLibrary && token.Text == "sources" && _contribs.Count > 0)
                         {
                             yield return token;
                             yield return token = GetToken();
 
                             if (token.Type == GnTokenType.Equals)
                             {
-                                foreach (var child in AddToList(new GnToken(GnTokenType.String, "\"fpdfsdk/pdfiumviewer.cpp\"")))
+                                var extraTokens = new List<GnToken>();
+
+                                foreach (var contrib in _contribs)
+                                {
+                                    if (extraTokens.Count > 0)
+                                        extraTokens.Add(new GnToken(GnTokenType.Comma));
+
+                                    extraTokens.Add(new GnToken(
+                                        GnTokenType.String,
+                                        "\"" + contrib.Replace(Path.DirectorySeparatorChar, '/') + "\""
+                                    ));
+                                }
+
+                                foreach (var child in AddToList(extraTokens))
                                 {
                                     yield return child;
                                 }
                             }
                         }
-                        */
                         else if (braceNesting == 0 && token.Text == "static_library")
                         {
                             var tokens = new List<GnToken>();
@@ -137,6 +153,11 @@ namespace PdfiumBuild
 
         private IEnumerable<GnToken> AddToList(GnToken token)
         {
+            return AddToList(new[] { token });
+        }
+
+        private IEnumerable<GnToken> AddToList(IEnumerable<GnToken> tokens)
+        {
             yield return GetToken(GnTokenType.BracketOpen);
 
             bool hadOne = false;
@@ -149,7 +170,12 @@ namespace PdfiumBuild
                 {
                     if (hadOne && !lastComma)
                         yield return new GnToken(GnTokenType.Comma);
-                    yield return token;
+
+                    foreach (var token in tokens)
+                    {
+                        yield return token;
+                    }
+
                     yield return child;
                     break;
                 }
