@@ -16,6 +16,8 @@ namespace PdfiumBuild
         private readonly Dictionary<string, string> _environmentVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private string _depotTools;
         private string _repo;
+        private int _commandId;
+        private readonly object _syncRoot = new object();
 
         public string CheckoutPath { get; private set; }
 
@@ -61,10 +63,8 @@ namespace PdfiumBuild
 
             Environment.CurrentDirectory = _repo;
 
-#if false
             RunCommand("gclient.bat", "config", "--unmanaged", "https://pdfium.googlesource.com/pdfium.git");
             RunCommand("gclient.bat", "sync");
-#endif
 
             CheckoutPath = Path.Combine(_repo, "pdfium");
         }
@@ -77,7 +77,6 @@ namespace PdfiumBuild
             _environmentVariables["PATH"] = _depotTools + ";" + _environmentVariables["PATH"];
             _environmentVariables["DEPOT_TOOLS_WIN_TOOLCHAIN"] = "0";
 
-#if false
             const string url = "https://storage.googleapis.com/chrome-infra/depot_tools.zip";
 
             Console.WriteLine("Downloading and extracting " + url);
@@ -93,25 +92,24 @@ namespace PdfiumBuild
             Environment.CurrentDirectory = _depotTools;
 
             RunCommand("gclient.bat");
-#endif
         }
 
         private void CreateBuildDirectory()
         {
-#if false
             Console.WriteLine($"Creating build directory at {_build}");
 
             if (Directory.Exists(_build))
                 DirectoryEx.DeleteAll(_build, true);
 
             Directory.CreateDirectory(_build);
-#endif
 
             Environment.CurrentDirectory = _build;
         }
 
         public void RunCommand(string exe, params string[] args)
         {
+            _commandId++;
+
             var sb = new StringBuilder();
 
             foreach (string arg in args)
@@ -144,8 +142,8 @@ namespace PdfiumBuild
                 StartInfo = startInfo
             };
 
-            process.OutputDataReceived += (s, e) => Console.WriteLine(e.Data);
-            process.ErrorDataReceived += (s, e) => Console.Error.WriteLine(e.Data);
+            process.OutputDataReceived += (s, e) => WriteOutput(Console.Out, e.Data, false);
+            process.ErrorDataReceived += (s, e) => WriteOutput(Console.Error, e.Data, true);
 
             process.Start();
 
@@ -153,6 +151,24 @@ namespace PdfiumBuild
             process.BeginErrorReadLine();
 
             process.WaitForExit();
+        }
+
+        private void WriteOutput(TextWriter @out, string data, bool error)
+        {
+            if (data == null)
+                return;
+
+            lock (_syncRoot)
+            {
+                var color = Console.ForegroundColor;
+                if (error)
+                    Console.ForegroundColor = ConsoleColor.Red;
+
+                @out.WriteLine(_commandId + ") " + data);
+
+                if (error)
+                    Console.ForegroundColor = color;
+            }
         }
 
         private string ResolveFromPath(string exe)
