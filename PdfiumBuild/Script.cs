@@ -47,7 +47,7 @@ namespace PdfiumBuild
         {
             Environment.CurrentDirectory = _env.CheckoutPath;
 
-            _env.RunCommand("git.exe", "clean", "-xdf");
+            _env.RunCommand("git.exe", "clean", "-xdf", "-e", "/third_party/llvm-build");
             _env.RunCommand("git.exe", "reset", "--hard");
         }
 
