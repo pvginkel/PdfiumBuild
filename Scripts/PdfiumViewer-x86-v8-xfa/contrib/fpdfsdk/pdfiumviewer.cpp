@@ -10,8 +10,8 @@
 
 extern "C"
 {
-	DLLEXPORT void STDCALL FPDF_AddRef();
-	DLLEXPORT void STDCALL FPDF_Release();
+	FPDF_EXPORT void FPDF_CALLCONV FPDF_AddRef();
+	FPDF_EXPORT void FPDF_CALLCONV FPDF_Release();
 }
 
 class RefCounter
@@ -91,12 +91,12 @@ public:
 static RefCounter refCounter;
 
 
-DLLEXPORT void STDCALL FPDF_AddRef()
+FPDF_EXPORT void FPDF_CALLCONV FPDF_AddRef()
 {
 	refCounter.AddRef();
 }
 
-DLLEXPORT void STDCALL FPDF_Release()
+FPDF_EXPORT void FPDF_CALLCONV FPDF_Release()
 {
 	refCounter.Release();
 }
