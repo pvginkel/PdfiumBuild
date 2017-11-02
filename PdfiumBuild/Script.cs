@@ -40,7 +40,15 @@ namespace PdfiumBuild
             FixupBuildScript();
             GenerateBuildFiles();
             Build();
-            return CopyOutput();
+
+            string target = CopyOutput();
+            if (target != null)
+            {
+                PublishNuGet(target);
+                return true;
+            }
+
+            return false;
         }
 
         private void ResetBuildDirectory()
@@ -51,7 +59,7 @@ namespace PdfiumBuild
             _env.RunCommand("git.exe", "reset", "--hard");
         }
 
-        private bool CopyOutput()
+        private string CopyOutput()
         {
             Console.WriteLine("Copying output to target directory");
 
@@ -62,11 +70,12 @@ namespace PdfiumBuild
 
             if (File.Exists(fileName))
             {
-                File.Copy(fileName, Path.Combine(target, Path.GetFileName(fileName)), true);
-                return true;
+                var final = Path.Combine(target, Path.GetFileName(fileName));
+                File.Copy(fileName, final, true);
+                return final;
             }
 
-            return false;
+            return null;
         }
 
         private void FixupBuildScript()
@@ -119,6 +128,100 @@ namespace PdfiumBuild
             }
 
             _env.RunCommand("gn.bat", "gen", "out");
+        }
+
+        private void PublishNuGet(string target)
+        {
+            // Do we have a NuGet configuration?
+
+            string contrib = Path.Combine(_directory, "nuget");
+            if (!Directory.Exists(contrib))
+                return;
+
+            // Get the required environment variables.
+
+            string apiKey = Environment.GetEnvironmentVariable("NUGET_API_KEY");
+            string buildNumberString = Environment.GetEnvironmentVariable("BUILD_NUMBER");
+
+            if (apiKey == null)
+            {
+                Console.WriteLine("Skipping NuGet publish because the NUGET_API_KEY environment variable is not set");
+                return;
+            }
+            if (buildNumberString == null || !int.TryParse(buildNumberString, out var buildNumber))
+            {
+                Console.WriteLine("Skipping NuGet publish because the BUILD_NUMBER environment variable is not set or invalid");
+                return;
+            }
+
+            // Find NuGet.exe.
+
+            string nuget = Path.Combine(_env.Root, "Libraries", "NuGet", "nuget.exe");
+            if (!File.Exists(nuget))
+            {
+                Console.WriteLine("Skipping NuGet publish because nuget.exe was not found at '{0}'", nuget);
+                return;
+            }
+
+            // Create a temporary directory to prepare the NuGet package.
+
+            using (var path = new TempPath())
+            {
+                // Copy all files and transform the NuSpec file if we find it.
+
+                string nuspecTarget = null;
+
+                foreach (string fileName in Directory.GetFiles(contrib))
+                {
+                    var tempTarget = Path.Combine(path.Path, Path.GetFileName(fileName));
+
+                    if (String.Equals(Path.GetExtension(fileName), ".nuspec", StringComparison.OrdinalIgnoreCase))
+                    {
+                        nuspecTarget = tempTarget;
+                        CopyTransformNuSpec(fileName, tempTarget, target, buildNumber);
+                    }
+                    else
+                    {
+                        File.Copy(fileName, tempTarget);
+                    }
+                }
+
+                if (nuspecTarget == null)
+                {
+                    Console.WriteLine("The nuget directory does not contain a .nuspec file; skipping NuGet publish");
+                    return;
+                }
+
+                // Build the NuGet package.
+
+                _env.RunCommand(nuget, "pack", "-NoPackageAnalysis", "-NonInteractive", "-OutputDirectory", path.Path, nuspecTarget);
+
+                // Publish the NuGet package.
+
+                string nupkgPath = Directory.GetFiles(path.Path)
+                    .SingleOrDefault(p => String.Equals(Path.GetExtension(p), ".nupkg", StringComparison.OrdinalIgnoreCase));
+
+                if (nupkgPath == null)
+                {
+                    Console.WriteLine("Skipping publish of NuGet package because no .nupkg file was created");
+                    return;
+                }
+
+                _env.RunCommand(nuget, "push", "-ApiKey", new Password(apiKey), "-Source", "https://www.nuget.org", nupkgPath);
+            }
+        }
+
+        private void CopyTransformNuSpec(string source, string target, string pdfium, int buildNumber)
+        {
+            var now = DateTime.UtcNow;
+
+            string versionNumber = $"{now.Year}.{now.Month}.{now.Day}.{buildNumber}";
+
+            string nuspec = File.ReadAllText(source);
+            nuspec = nuspec.Replace("$version$", versionNumber);
+            nuspec = nuspec.Replace("$pdfium$", pdfium);
+
+            File.WriteAllText(target, nuspec);
         }
     }
 }

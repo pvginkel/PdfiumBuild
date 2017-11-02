@@ -19,6 +19,7 @@ namespace PdfiumBuild
         private int _commandId;
         private readonly object _syncRoot = new object();
 
+        public string Root { get; private set; }
         public string CheckoutPath { get; private set; }
 
         public Env(Arguments arguments)
@@ -27,6 +28,7 @@ namespace PdfiumBuild
                 throw new ArgumentNullException(nameof(arguments));
 
             _build = arguments.Build;
+            Root = Path.GetDirectoryName(arguments.Scripts);
 
             foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
             {
@@ -71,7 +73,6 @@ namespace PdfiumBuild
 
         private void SetupDepotTools()
         {
-
             _depotTools = Path.Combine(_build, "depot_tools");
 
             _environmentVariables["PATH"] = _depotTools + ";" + _environmentVariables["PATH"];
@@ -106,23 +107,14 @@ namespace PdfiumBuild
             Environment.CurrentDirectory = _build;
         }
 
-        public void RunCommand(string exe, params string[] args)
+        public void RunCommand(string exe, params object[] args)
         {
             _commandId++;
-
-            var sb = new StringBuilder();
-
-            foreach (string arg in args)
-            {
-                if (sb.Length > 0)
-                    sb.Append(' ');
-                sb.Append("\"" + arg.Replace("\"", "\"\"") + "\"");
-            }
 
             var startInfo = new ProcessStartInfo
             {
                 FileName = ResolveFromPath(exe),
-                Arguments = sb.ToString(),
+                Arguments = BuildArguments(args, true),
                 UseShellExecute = false,
                 WorkingDirectory = Environment.CurrentDirectory,
                 RedirectStandardOutput = true,
@@ -134,7 +126,7 @@ namespace PdfiumBuild
                 startInfo.EnvironmentVariables[entry.Key] = entry.Value;
             }
 
-            Console.WriteLine($"Running {startInfo.FileName} {startInfo.Arguments}");
+            Console.WriteLine($"Running {startInfo.FileName} {BuildArguments(args, false)}");
 
             var process = new Process
             {
@@ -151,6 +143,28 @@ namespace PdfiumBuild
             process.BeginErrorReadLine();
 
             process.WaitForExit();
+        }
+
+        private string BuildArguments(object[] args, bool printPasswords)
+        {
+            var sb = new StringBuilder();
+
+            foreach (object arg in args)
+            {
+                if (sb.Length > 0)
+                    sb.Append(' ');
+
+                string printed;
+
+                if (!printPasswords && arg is Password)
+                    printed = "****";
+                else
+                    printed = arg.ToString();
+
+                sb.Append("\"" + printed.Replace("\"", "\"\"") + "\"");
+            }
+
+            return sb.ToString();
         }
 
         private void WriteOutput(TextWriter @out, string data, bool error)

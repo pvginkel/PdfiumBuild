@@ -56,9 +56,11 @@
     <Compile Include="Gn\GnRewriter.cs" />
     <Compile Include="Gn\GnToken.cs" />
     <Compile Include="Gn\GnTokenType.cs" />
+    <Compile Include="Password.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Script.cs" />
+    <Compile Include="TempPath.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>PdfiumViewer.Native.x86.no_v8-no_xfa</id>
+    <version>$version$</version>
+    <title>PdfiumViewer 32-bit native PDFium DLL without V8 or XFA support</title>
+    <authors>Pieter van Ginkel</authors>
+    <owners>Pieter van Ginkel</owners>
+    <licenseUrl>https://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
+    <projectUrl>http://github.com/pvginkel/PdfiumBuild</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Native 32-bit PDFium DLL without V8 or XFA support for usage with the PdfiumViewer project.</description>
+    <copyright>Pieter van Ginkel © 2012-2017</copyright>
+    <tags>pdf viewer pdfium</tags>
+  </metadata>
+  <files>
+    <file src="$pdfium$" target="Build\x86" />
+    <file src="PdfiumViewer.Native.x86.no_v8-no_xfa.props" target="Build" />
+  </files>
+</package>
