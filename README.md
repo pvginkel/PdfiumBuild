@@ -29,9 +29,9 @@ copy this to the correct folder in your output directory.
 Depending on your needs, you can choose the NuGet package(s) you need. The ones
 with V8 and XFA support are bigger, but support more features. Also,
 the V8 version does not support Windows XP so if you need support for Windows XP,
-you need to choose one of the libraries that does not contain V8 support. As for
-the architecture you can choose one or the other, or both if you need support
-for both architectures.
+you need to choose one of the libraries that does not contain V8 support and include
+an updated version of the `dbghelp` libraries. These can be found in the
+[Support\dbghelp](https://github.com/pvginkel/PdfiumBuild/tree/master/Support/dbghelp) directory.
 
 The version numbers of these packages are determined automatically and are
 composed of the current date and the build number from the Jenkins build server.
