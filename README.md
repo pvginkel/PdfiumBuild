@@ -38,7 +38,7 @@ composed of the current date and the build number from the Jenkins build server.
 
 ## The build server
 
-A build server has been setup to compile PDFium daily. The results can be
+A build server has been setup to compile PDFium weekly. The results can be
 downloaded from https://assendelft.webathome.org/Pdfium/. Please note that this
 is a personal server, which may be down at any time.
 
