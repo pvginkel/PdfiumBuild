@@ -55,7 +55,9 @@ public:
 		if (refCount == 0)
 		{
 #if PDF_ENABLE_V8
-			v8::V8::InitializeICU();
+#if V8_INTL_SUPPORT
+#error V8_INTL_SUPPORT cannot be enabled
+#endif
 			platform = v8::platform::CreateDefaultPlatform();
 			v8::V8::InitializePlatform(platform);
 			v8::V8::Initialize();
