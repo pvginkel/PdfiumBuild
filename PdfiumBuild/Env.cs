@@ -84,6 +84,8 @@ namespace PdfiumBuild
 
             string target = Path.Combine(_build, "depot_tools.zip");
 
+            Directory.CreateDirectory(_build);
+
             new WebClient().DownloadFile(url, target);
 
             Directory.CreateDirectory(_depotTools);
