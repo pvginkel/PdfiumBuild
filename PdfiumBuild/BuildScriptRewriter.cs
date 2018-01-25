@@ -119,7 +119,7 @@ namespace PdfiumBuild
                                 }
                             }
                         }
-                        else if (braceNesting == 0 && token.Text == "static_library")
+                        else if (braceNesting == 0 && (token.Text == "static_library" || token.Text == "jumbo_static_library"))
                         {
                             var tokens = new List<GnToken>();
                             tokens.Add(token);
