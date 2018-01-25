@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using PdfiumBuild.Gn;
 
 namespace PdfiumBuild
 {
@@ -15,6 +16,8 @@ namespace PdfiumBuild
         private readonly string _target;
         private readonly string _script;
         private readonly List<string> _contribs = new List<string>();
+
+        public Architecture Architecture { get; }
 
         public Script(Env env, string directory, string target)
         {
@@ -29,6 +32,47 @@ namespace PdfiumBuild
             _directory = directory;
             _target = target;
             _script = Path.GetFileName(_directory);
+            Architecture = ParseArchitecture(Path.Combine(directory, "args.gn"));
+        }
+
+        private Architecture ParseArchitecture(string path)
+        {
+            if (!File.Exists(path))
+                throw new InvalidOperationException("Expected script directory to contain an args.gn file");
+
+            var lexer = new GnLexer(File.ReadAllText(path));
+
+            GnToken token;
+            while ((token = lexer.Next()) != null)
+            {
+                if (token.Type == GnTokenType.Identifier && token.Text == "target_cpu")
+                {
+                    token = lexer.Next();
+                    if (token != null && token.Type == GnTokenType.Equals)
+                    {
+                        token = lexer.Next();
+                        if (token != null && token.Type == GnTokenType.String)
+                            return ParseArchitectureValue(token.Text);
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("Missing \"target_cpu\" setting in the args.gn file");
+        }
+
+        private Architecture ParseArchitectureValue(string value)
+        {
+            Debug.Assert(value.StartsWith("\"") && value.EndsWith("\""));
+
+            switch (value.Substring(1, value.Length - 2))
+            {
+                case "x86":
+                    return Architecture.X86;
+                case "x64":
+                    return Architecture.X64;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
         }
 
         public bool Execute()
@@ -75,6 +119,7 @@ namespace PdfiumBuild
                 return final;
             }
 
+            Console.Error.WriteLine($"Cannot find target at '{fileName}'");
             return null;
         }
 

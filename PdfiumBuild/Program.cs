@@ -28,7 +28,11 @@ namespace PdfiumBuild
             {
                 Console.WriteLine($"Found script {Path.GetFileName(directory)}");
 
-                scripts.Add(new Script(env, directory, arguments.Target));
+                var script = new Script(env, directory, arguments.Target);
+                if (script.Architecture == arguments.Architecture)
+                    scripts.Add(script);
+                else
+                    Console.WriteLine("    Skipping because of architecture mismatch");
             }
 
             Console.WriteLine("Executing scripts");

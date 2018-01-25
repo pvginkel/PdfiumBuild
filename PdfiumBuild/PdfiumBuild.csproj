@@ -47,6 +47,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Architecture.cs" />
     <Compile Include="Arguments.cs" />
     <Compile Include="BuildScriptRewriter.cs" />
     <Compile Include="DirectoryEx.cs" />
