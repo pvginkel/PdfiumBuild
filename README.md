@@ -9,6 +9,16 @@ The main purpose of this project is to automate building the `pdfium.dll` suppor
 library and NuGet packages for the [PdfiumViewer](https://github.com/pvginkel/PdfiumViewer/)
 project. However, unmodified versions of the PDFium library are also provided.
 
+## Archived
+
+I regret to announce I'm archiving this project. I haven't been able to spend any real time on this for a long time now, and must face the fact I'm not in a position to properly support this project.
+
+I'm archiving this project together with the [PdfiumViewer](https://github.com/pvginkel/PdfiumViewer) project for which this build project was created. Have look there for a bit more background and information.
+
+I'm also shutting down the build server. The Builds folder in this project contains some archived built DLL's that may be of use. See the README there for more information on them.
+
+I've had a great time developing this project and helping you out using this project, and I'm sad I have to now close this down. I hope PdfiumViewer and PdfiumBuild have been of value to you. The source code and NuGet packages won't be going anywhere, so keep using them if they're of value to you.
+
 ## NuGet packages
 
 Besides, the `pdfium.dll` files, NuGet packages are automatically build and
