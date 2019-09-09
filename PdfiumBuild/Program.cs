@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -6,49 +7,61 @@ using System.Text;
 
 namespace PdfiumBuild
 {
-    public static class Program
-    {
-        public static int Main(string[] args)
-        {
-            Console.WriteLine("Setting up environment");
+	public static class Program
+	{
+		private static Logger logger = LogManager.GetCurrentClassLogger();
 
-            var arguments = Arguments.Parse(args);
+		public static int Main(string[] args)
+		{
+			bool anyFailed = false;
 
-            Console.WriteLine("Initializing build environment");
+			try
+			{
 
-            var env = new Env(arguments);
+				logger.Info("Setting up environment");
 
-            env.Setup();
+				var arguments = Arguments.Parse(args);
 
-            Console.WriteLine("Finding scripts");
+				logger.Info("Initializing build environment");
 
-            var scripts = new List<Script>();
+				var env = new Env(arguments);
 
-            foreach (string directory in Directory.GetDirectories(arguments.Scripts))
-            {
-                Console.WriteLine($"Found script {Path.GetFileName(directory)}");
+				env.Setup();
 
-                var script = new Script(env, directory, arguments.Target);
-                if (script.Architecture == arguments.Architecture)
-                    scripts.Add(script);
-                else
-                    Console.WriteLine("    Skipping because of architecture mismatch");
-            }
+				logger.Info("Finding scripts");
 
-            Console.WriteLine("Executing scripts");
+				var scripts = new List<Script>();
 
-            bool anyFailed = false;
+				foreach (string directory in Directory.GetDirectories(arguments.Scripts))
+				{
+					logger.Info($"Found script {Path.GetFileName(directory)}");
 
-            foreach (var script in scripts)
-            {
-                if (!script.Execute())
-                {
-                    Console.Error.WriteLine("Compilation failed");
-                    anyFailed = true;
-                }
-            }
+					var script = new Script(env, directory, arguments.Target);
+					if (script.Architecture == arguments.Architecture)
+						scripts.Add(script);
+					else
+						logger.Info("    Skipping because of architecture mismatch");
+				}
 
-            return anyFailed ? 1 : 0;
-        }
-    }
+				logger.Info("Executing scripts");
+
+
+				foreach (var script in scripts)
+				{
+					if (!script.Execute())
+					{
+						Console.Error.WriteLine("Compilation failed");
+						anyFailed = true;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+
+				logger.Error(ex);
+			}
+
+			return anyFailed ? 1 : 0;
+		}
+	}
 }

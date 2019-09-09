@@ -5,268 +5,287 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using NLog;
 using PdfiumBuild.Gn;
 
 namespace PdfiumBuild
 {
-    internal class Script
-    {
-        private readonly Env _env;
-        private readonly string _directory;
-        private readonly string _target;
-        private readonly string _script;
-        private readonly List<string> _contribs = new List<string>();
+	internal class Script
+	{
 
-        public Architecture Architecture { get; }
+		private static Logger logger = LogManager.GetCurrentClassLogger();
 
-        public Script(Env env, string directory, string target)
-        {
-            if (env == null)
-                throw new ArgumentNullException(nameof(env));
-            if (directory == null)
-                throw new ArgumentNullException(nameof(directory));
-            if (target == null)
-                throw new ArgumentNullException(nameof(target));
+		private readonly Env _env;
+		private readonly string _directory;
+		private readonly string _target;
+		private readonly string _script;
+		private readonly List<string> _contribs = new List<string>();
 
-            _env = env;
-            _directory = directory;
-            _target = target;
-            _script = Path.GetFileName(_directory);
-            Architecture = ParseArchitecture(Path.Combine(directory, "args.gn"));
-        }
+		public Architecture Architecture { get; }
 
-        private Architecture ParseArchitecture(string path)
-        {
-            if (!File.Exists(path))
-                throw new InvalidOperationException("Expected script directory to contain an args.gn file");
+		public Script(Env env, string directory, string target)
+		{
+			if (env == null)
+				throw new ArgumentNullException(nameof(env));
+			if (directory == null)
+				throw new ArgumentNullException(nameof(directory));
+			if (target == null)
+				throw new ArgumentNullException(nameof(target));
 
-            var lexer = new GnLexer(File.ReadAllText(path));
+			_env = env;
+			_directory = directory;
+			_target = target;
+			_script = Path.GetFileName(_directory);
+			Architecture = ParseArchitecture(Path.Combine(directory, "args.gn"));
+		}
 
-            GnToken token;
-            while ((token = lexer.Next()) != null)
-            {
-                if (token.Type == GnTokenType.Identifier && token.Text == "target_cpu")
-                {
-                    token = lexer.Next();
-                    if (token != null && token.Type == GnTokenType.Equals)
-                    {
-                        token = lexer.Next();
-                        if (token != null && token.Type == GnTokenType.String)
-                            return ParseArchitectureValue(token.Text);
-                    }
-                }
-            }
+		private Architecture ParseArchitecture(string path)
+		{
+			if (!File.Exists(path))
+				throw new InvalidOperationException("Expected script directory to contain an args.gn file");
 
-            throw new InvalidOperationException("Missing \"target_cpu\" setting in the args.gn file");
-        }
+			var lexer = new GnLexer(File.ReadAllText(path));
 
-        private Architecture ParseArchitectureValue(string value)
-        {
-            Debug.Assert(value.StartsWith("\"") && value.EndsWith("\""));
+			GnToken token;
+			while ((token = lexer.Next()) != null)
+			{
+				if (token.Type == GnTokenType.Identifier && token.Text == "target_cpu")
+				{
+					token = lexer.Next();
+					if (token != null && token.Type == GnTokenType.Equals)
+					{
+						token = lexer.Next();
+						if (token != null && token.Type == GnTokenType.String)
+							return ParseArchitectureValue(token.Text);
+					}
+				}
+			}
 
-            switch (value.Substring(1, value.Length - 2))
-            {
-                case "x86":
-                    return Architecture.X86;
-                case "x64":
-                    return Architecture.X64;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-        }
+			throw new InvalidOperationException("Missing \"target_cpu\" setting in the args.gn file");
+		}
 
-        public bool Execute()
-        {
-            Console.WriteLine("Compiling " + _script);
+		private Architecture ParseArchitectureValue(string value)
+		{
+			Debug.Assert(value.StartsWith("\"") && value.EndsWith("\""));
 
-            ResetBuildDirectory();
-            CopyContrib();
-            FixupBuildScript();
-            GenerateBuildFiles();
-            Build();
+			switch (value.Substring(1, value.Length - 2))
+			{
+				case "x86":
+					return Architecture.X86;
+				case "x64":
+					return Architecture.X64;
+				default:
+					throw new ArgumentOutOfRangeException(nameof(value));
+			}
+		}
 
-            string target = CopyOutput();
-            if (target != null)
-            {
-                PublishNuGet(target);
-                return true;
-            }
+		public bool Execute()
+		{
 
-            return false;
-        }
+			bool result = false;
 
-        private void ResetBuildDirectory()
-        {
-            Environment.CurrentDirectory = _env.CheckoutPath;
+			try
+			{
 
-            _env.RunCommand("git.exe", "clean", "-xdf", "-e", "/third_party/llvm-build");
-            _env.RunCommand("git.exe", "reset", "--hard");
-        }
 
-        private string CopyOutput()
-        {
-            Console.WriteLine("Copying output to target directory");
+				logger.Info("Compiling " + _script);
 
-            string target = Path.Combine(_target, _script);
-            Directory.CreateDirectory(target);
+				ResetBuildDirectory();
+				CopyContrib();
+				FixupBuildScript();
+				GenerateBuildFiles();
+				Build();
 
-            string fileName = Path.Combine(_env.CheckoutPath, "out", "pdfium.dll");
+				string target = CopyOutput();
+				if (target != null)
+				{
+					PublishNuGet(target);
+					result = true;
+				}
 
-            if (File.Exists(fileName))
-            {
-                var final = Path.Combine(target, Path.GetFileName(fileName));
-                File.Copy(fileName, final, true);
-                return final;
-            }
+				result = false;
+			}
+			catch (Exception ex)
+			{
 
-            Console.Error.WriteLine($"Cannot find target at '{fileName}'");
-            return null;
-        }
+				logger.Error(ex);
+			}
 
-        private void FixupBuildScript()
-        {
-            BuildScriptRewriter.Rewrite(Path.Combine(_env.CheckoutPath, "BUILD.gn"), _contribs);
-        }
+			return result;
+		}
 
-        private void CopyContrib()
-        {
-            string contrib = Path.Combine(_directory, "contrib");
-            if (!Directory.Exists(contrib))
-                return;
+		private void ResetBuildDirectory()
+		{
+			Environment.CurrentDirectory = _env.CheckoutPath;
 
-            foreach (string fileName in Directory.GetFiles(contrib, "*", SearchOption.AllDirectories))
-            {
-                if (!fileName.StartsWith(contrib))
-                    throw new InvalidOperationException("Expected file name to start with directory");
+			_env.RunCommand("git.exe", "clean", "-xdf", "-e", "/third_party/llvm-build");
+			_env.RunCommand("git.exe", "reset", "--hard");
+		}
 
-                string relativeName = fileName.Substring(contrib.Length).TrimStart(Path.DirectorySeparatorChar);
-                _contribs.Add(relativeName);
+		private string CopyOutput()
+		{
+			logger.Info("Copying output to target directory");
 
-                string target = Path.Combine(_env.CheckoutPath, relativeName);
+			string target = Path.Combine(_target, _script);
+			Directory.CreateDirectory(target);
 
-                Directory.CreateDirectory(Path.GetDirectoryName(target));
-                File.Copy(fileName, target, true);
-            }
-        }
+			string fileName = Path.Combine(_env.CheckoutPath, "out", "pdfium.dll");
 
-        private void Build()
-        {
-            Environment.CurrentDirectory = _env.CheckoutPath;
+			if (File.Exists(fileName))
+			{
+				var final = Path.Combine(target, Path.GetFileName(fileName));
+				File.Copy(fileName, final, true);
+				return final;
+			}
 
-            _env.RunCommand("ninja.exe", "-C", "out", "pdfium");
-        }
+			Console.Error.WriteLine($"Cannot find target at '{fileName}'");
+			return null;
+		}
 
-        private void GenerateBuildFiles()
-        {
-            Environment.CurrentDirectory = _env.CheckoutPath;
+		private void FixupBuildScript()
+		{
+			BuildScriptRewriter.Rewrite(Path.Combine(_env.CheckoutPath, "BUILD.gn"), _contribs);
+		}
 
-            string args = Path.Combine(_directory, "args.gn");
+		private void CopyContrib()
+		{
+			string contrib = Path.Combine(_directory, "contrib");
+			if (!Directory.Exists(contrib))
+				return;
 
-            if (File.Exists(args))
-            {
-                Console.WriteLine("Found args.gn as part of the script; copying");
+			foreach (string fileName in Directory.GetFiles(contrib, "*", SearchOption.AllDirectories))
+			{
+				if (!fileName.StartsWith(contrib))
+					throw new InvalidOperationException("Expected file name to start with directory");
 
-                string target = Path.Combine(_env.CheckoutPath, "out", "args.gn");
+				string relativeName = fileName.Substring(contrib.Length).TrimStart(Path.DirectorySeparatorChar);
+				_contribs.Add(relativeName);
 
-                Directory.CreateDirectory(Path.GetDirectoryName(target));
-                File.Copy(args, target, true);
-            }
+				string target = Path.Combine(_env.CheckoutPath, relativeName);
 
-            _env.RunCommand("gn.bat", "gen", "out");
-        }
+				Directory.CreateDirectory(Path.GetDirectoryName(target));
+				File.Copy(fileName, target, true);
+			}
+		}
 
-        private void PublishNuGet(string target)
-        {
-            // Do we have a NuGet configuration?
+		private void Build()
+		{
+			Environment.CurrentDirectory = _env.CheckoutPath;
 
-            string contrib = Path.Combine(_directory, "nuget");
-            if (!Directory.Exists(contrib))
-                return;
+			_env.RunCommand("ninja.exe", "-C", "out", "pdfium");
+		}
 
-            // Get the required environment variables.
+		private void GenerateBuildFiles()
+		{
+			Environment.CurrentDirectory = _env.CheckoutPath;
 
-            string apiKey = Environment.GetEnvironmentVariable("NUGET_API_KEY");
-            string buildNumberString = Environment.GetEnvironmentVariable("BUILD_NUMBER");
+			string args = Path.Combine(_directory, "args.gn");
 
-            if (apiKey == null)
-            {
-                Console.WriteLine("Skipping NuGet publish because the NUGET_API_KEY environment variable is not set");
-                return;
-            }
-            if (buildNumberString == null || !int.TryParse(buildNumberString, out var buildNumber))
-            {
-                Console.WriteLine("Skipping NuGet publish because the BUILD_NUMBER environment variable is not set or invalid");
-                return;
-            }
+			if (File.Exists(args))
+			{
+				logger.Info("Found args.gn as part of the script; copying");
 
-            // Find NuGet.exe.
+				string target = Path.Combine(_env.CheckoutPath, "out", "args.gn");
 
-            string nuget = Path.Combine(_env.Root, "Libraries", "NuGet", "nuget.exe");
-            if (!File.Exists(nuget))
-            {
-                Console.WriteLine("Skipping NuGet publish because nuget.exe was not found at '{0}'", nuget);
-                return;
-            }
+				Directory.CreateDirectory(Path.GetDirectoryName(target));
+				File.Copy(args, target, true);
+			}
 
-            // Create a temporary directory to prepare the NuGet package.
+			_env.RunCommand("gn.bat", "gen", "out");
+		}
 
-            using (var path = new TempPath())
-            {
-                // Copy all files and transform the NuSpec file if we find it.
+		private void PublishNuGet(string target)
+		{
+			// Do we have a NuGet configuration?
 
-                string nuspecTarget = null;
+			string contrib = Path.Combine(_directory, "nuget");
+			if (!Directory.Exists(contrib))
+				return;
 
-                foreach (string fileName in Directory.GetFiles(contrib))
-                {
-                    var tempTarget = Path.Combine(path.Path, Path.GetFileName(fileName));
+			// Get the required environment variables.
 
-                    if (String.Equals(Path.GetExtension(fileName), ".nuspec", StringComparison.OrdinalIgnoreCase))
-                    {
-                        nuspecTarget = tempTarget;
-                        CopyTransformNuSpec(fileName, tempTarget, target, buildNumber);
-                    }
-                    else
-                    {
-                        File.Copy(fileName, tempTarget);
-                    }
-                }
+			string apiKey = Environment.GetEnvironmentVariable("NUGET_API_KEY");
+			string buildNumberString = Environment.GetEnvironmentVariable("BUILD_NUMBER");
 
-                if (nuspecTarget == null)
-                {
-                    Console.WriteLine("The nuget directory does not contain a .nuspec file; skipping NuGet publish");
-                    return;
-                }
+			if (apiKey == null)
+			{
+				logger.Info("Skipping NuGet publish because the NUGET_API_KEY environment variable is not set");
+				return;
+			}
+			if (buildNumberString == null || !int.TryParse(buildNumberString, out var buildNumber))
+			{
+				logger.Info("Skipping NuGet publish because the BUILD_NUMBER environment variable is not set or invalid");
+				return;
+			}
 
-                // Build the NuGet package.
+			// Find NuGet.exe.
 
-                _env.RunCommand(nuget, "pack", "-NoPackageAnalysis", "-NonInteractive", "-OutputDirectory", path.Path, nuspecTarget);
+			string nuget = Path.Combine(_env.Root, "Libraries", "NuGet", "nuget.exe");
+			if (!File.Exists(nuget))
+			{
+				logger.Info("Skipping NuGet publish because nuget.exe was not found at '{0}'", nuget);
+				return;
+			}
 
-                // Publish the NuGet package.
+			// Create a temporary directory to prepare the NuGet package.
 
-                string nupkgPath = Directory.GetFiles(path.Path)
-                    .SingleOrDefault(p => String.Equals(Path.GetExtension(p), ".nupkg", StringComparison.OrdinalIgnoreCase));
+			using (var path = new TempPath())
+			{
+				// Copy all files and transform the NuSpec file if we find it.
 
-                if (nupkgPath == null)
-                {
-                    Console.WriteLine("Skipping publish of NuGet package because no .nupkg file was created");
-                    return;
-                }
+				string nuspecTarget = null;
 
-                _env.RunCommand(nuget, "push", "-ApiKey", new Password(apiKey), "-Source", "https://www.nuget.org", nupkgPath);
-            }
-        }
+				foreach (string fileName in Directory.GetFiles(contrib))
+				{
+					var tempTarget = Path.Combine(path.Path, Path.GetFileName(fileName));
 
-        private void CopyTransformNuSpec(string source, string target, string pdfium, int buildNumber)
-        {
-            var now = DateTime.UtcNow;
+					if (String.Equals(Path.GetExtension(fileName), ".nuspec", StringComparison.OrdinalIgnoreCase))
+					{
+						nuspecTarget = tempTarget;
+						CopyTransformNuSpec(fileName, tempTarget, target, buildNumber);
+					}
+					else
+					{
+						File.Copy(fileName, tempTarget);
+					}
+				}
 
-            string versionNumber = $"{now.Year}.{now.Month}.{now.Day}.{buildNumber}";
+				if (nuspecTarget == null)
+				{
+					logger.Info("The nuget directory does not contain a .nuspec file; skipping NuGet publish");
+					return;
+				}
 
-            string nuspec = File.ReadAllText(source);
-            nuspec = nuspec.Replace("$version$", versionNumber);
-            nuspec = nuspec.Replace("$pdfium$", pdfium);
+				// Build the NuGet package.
 
-            File.WriteAllText(target, nuspec);
-        }
-    }
+				_env.RunCommand(nuget, "pack", "-NoPackageAnalysis", "-NonInteractive", "-OutputDirectory", path.Path, nuspecTarget);
+
+				// Publish the NuGet package.
+
+				string nupkgPath = Directory.GetFiles(path.Path)
+					.SingleOrDefault(p => String.Equals(Path.GetExtension(p), ".nupkg", StringComparison.OrdinalIgnoreCase));
+
+				if (nupkgPath == null)
+				{
+					logger.Info("Skipping publish of NuGet package because no .nupkg file was created");
+					return;
+				}
+
+				_env.RunCommand(nuget, "push", "-ApiKey", new Password(apiKey), "-Source", "https://www.nuget.org", nupkgPath);
+			}
+		}
+
+		private void CopyTransformNuSpec(string source, string target, string pdfium, int buildNumber)
+		{
+			var now = DateTime.UtcNow;
+
+			string versionNumber = $"{now.Year}.{now.Month}.{now.Day}.{buildNumber}";
+
+			string nuspec = File.ReadAllText(source);
+			nuspec = nuspec.Replace("$version$", versionNumber);
+			nuspec = nuspec.Replace("$pdfium$", pdfium);
+
+			File.WriteAllText(target, nuspec);
+		}
+	}
 }

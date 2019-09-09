@@ -7,12 +7,16 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using ICSharpCode.SharpZipLib.Zip;
+using NLog;
 
 namespace PdfiumBuild
 {
     internal class Env
     {
-        private readonly string _build;
+		private static Logger logger = LogManager.GetCurrentClassLogger();
+
+
+		private readonly string _build;
         private readonly Dictionary<string, string> _environmentVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private string _depotTools;
         private string _repo;
@@ -35,7 +39,7 @@ namespace PdfiumBuild
                 _environmentVariables.Add((string)entry.Key, (string)entry.Value);
             }
 
-            Console.WriteLine("Detecting Windows 10 SDK");
+            logger.Info("Detecting Windows 10 SDK");
 
             string sdkDirectory = @"C:\Program Files (x86)\Windows Kits\10";
             string cdb = Path.Combine(sdkDirectory, "Debuggers", "x64", "cdb.exe");
@@ -57,7 +61,7 @@ namespace PdfiumBuild
 
         private void ClonePdfium()
         {
-            Console.WriteLine("Getting Pdfium");
+            logger.Info("Getting Pdfium");
 
             _repo = Path.Combine(_build, "repo");
 
@@ -80,7 +84,7 @@ namespace PdfiumBuild
 
             const string url = "https://storage.googleapis.com/chrome-infra/depot_tools.zip";
 
-            Console.WriteLine("Downloading and extracting " + url);
+            logger.Info("Downloading and extracting " + url);
 
             string target = Path.Combine(_build, "depot_tools.zip");
 
@@ -99,7 +103,7 @@ namespace PdfiumBuild
 
         private void CreateBuildDirectory()
         {
-            Console.WriteLine($"Creating build directory at {_build}");
+            logger.Info($"Creating build directory at {_build}");
 
             if (Directory.Exists(_build))
                 DirectoryEx.DeleteAll(_build, true);
@@ -128,7 +132,7 @@ namespace PdfiumBuild
                 startInfo.EnvironmentVariables[entry.Key] = entry.Value;
             }
 
-            Console.WriteLine($"Running {startInfo.FileName} {BuildArguments(args, false)}");
+            logger.Info($"Running {startInfo.FileName} {BuildArguments(args, false)}");
 
             var process = new Process
             {
